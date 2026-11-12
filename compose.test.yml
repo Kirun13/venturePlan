@@ -1,0 +1,25 @@
+services:
+  test-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: venture
+      POSTGRES_PASSWORD: venture
+      POSTGRES_DB: ventureplan_test
+    tmpfs:
+      - /var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U venture -d ventureplan_test"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+  tests:
+    build:
+      context: ./backend
+      target: test
+    environment:
+      AGENT_MODE: mock
+      DATABASE_URL: postgresql+asyncpg://venture:venture@test-db:5432/ventureplan_test
+      TEST_DATABASE_URL: postgresql+asyncpg://venture:venture@test-db:5432/ventureplan_test
+    depends_on:
+      test-db:
+        condition: service_healthy

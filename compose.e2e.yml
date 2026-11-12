@@ -1,0 +1,41 @@
+# Isolated mock workspace. Does not read backend/.env or use an API key.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: venture
+      POSTGRES_PASSWORD: venture
+      POSTGRES_DB: ventureplan_e2e
+    tmpfs: [/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U venture -d ventureplan_e2e"]
+      interval: 1s
+      timeout: 3s
+      retries: 30
+  migrate:
+    image: business-plan-mas-backend:latest
+    command: ["alembic", "upgrade", "head"]
+    environment: &mock-env
+      AGENT_MODE: mock
+      DATABASE_URL: postgresql+asyncpg://venture:venture@db:5432/ventureplan_e2e
+      CORS_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
+    depends_on:
+      db:
+        condition: service_healthy
+  backend:
+    image: business-plan-mas-backend:latest
+    environment: *mock-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  worker:
+    image: business-plan-mas-backend:latest
+    command: ["python", "-m", "app.worker"]
+    environment: *mock-env
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+  frontend:
+    image: business-plan-mas-frontend:latest
+    ports: ["127.0.0.1:3001:3000"]
+    depends_on: [backend]
